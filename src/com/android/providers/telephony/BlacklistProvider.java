@@ -110,8 +110,7 @@ public class BlacklistProvider extends ContentProvider {
                         String[] rowId = new String[1];
 
                         while (rows.moveToNext()) {
-                            String originalNumber = rows.getString(1);
-                            String normalized = normalizeNumber(mContext, originalNumber, false);
+                            String normalized = normalizeNumber(mContext, rows.getString(1));
                             rowId[0] = rows.getString(0);
                             cv.clear();
                             cv.put(COLUMN_NORMALIZED, normalized);
@@ -159,7 +158,7 @@ public class BlacklistProvider extends ContentProvider {
                 qb.appendWhere(Blacklist._ID + " = " + uri.getLastPathSegment());
                 break;
             case BL_NUMBER: {
-                String number = normalizeNumber(getContext(), uri.getLastPathSegment(), false);
+                String number = normalizeNumber(getContext(), uri.getLastPathSegment());
                 boolean regex = uri.getBooleanQueryParameter(Blacklist.REGEX_KEY, false);
 
                 if (regex) {
@@ -266,7 +265,7 @@ public class BlacklistProvider extends ContentProvider {
                 }
                 where = COLUMN_NORMALIZED + " = ?";
                 whereArgs = new String[] {
-                    normalizeNumber(getContext(), uri.getLastPathSegment(), false)
+                    normalizeNumber(getContext(), uri.getLastPathSegment())
                 };
                 break;
             default:
@@ -312,7 +311,7 @@ public class BlacklistProvider extends ContentProvider {
                 db.beginTransaction();
                 try {
                     count = db.update(BLACKLIST_TABLE, values, COLUMN_NORMALIZED + " = ?",
-                            new String[] { normalizeNumber(getContext(), uriNumber, false) });
+                            new String[] { normalizeNumber(getContext(), uriNumber) });
                     if (count == 0) {
                         // convenience: fall back to insert if number wasn't present
                         if (db.insert(BLACKLIST_TABLE, null, values) > 0) {
@@ -364,12 +363,7 @@ public class BlacklistProvider extends ContentProvider {
                 return null;
             }
 
-            String normalizedNumber = normalizeNumber(getContext(), number, true);
-            if (normalizedNumber == null) {
-                // number was invalid
-                return null;
-            }
-
+            String normalizedNumber = normalizeNumber(getContext(), number);
             boolean isRegex = normalizedNumber.indexOf('%') >= 0
                     || normalizedNumber.indexOf('_') >= 0;
 
@@ -387,7 +381,7 @@ public class BlacklistProvider extends ContentProvider {
 
     // mostly a copy of PhoneNumberUtils.normalizeNumber,
     // with the exception of support for regex characters
-    private static String normalizeNumber(Context context, String number, boolean enforceValidity) {
+    private static String normalizeNumber(Context context, String number) {
         int len = number.length();
         StringBuilder ret = new StringBuilder(len);
 
@@ -399,7 +393,7 @@ public class BlacklistProvider extends ContentProvider {
                 ret.append(digit);
             } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
                 String actualNumber = PhoneNumberUtils.convertKeypadLettersToDigits(number);
-                return normalizeNumber(context, actualNumber, enforceValidity);
+                return normalizeNumber(context, actualNumber);
             } else if (i == 0 && c == '+') {
                 ret.append(c);
             } else if (c == '*') {
@@ -411,10 +405,10 @@ public class BlacklistProvider extends ContentProvider {
             }
         }
 
-        return toE164Number(context, ret.toString(), enforceValidity);
+        return toE164Number(context, ret.toString());
     }
 
-    private static String toE164Number(Context context, String src, boolean enforceValidity) {
+    private static String toE164Number(Context context, String src) {
         // Try to retrieve the current ISO Country code
         TelephonyManager tm = (TelephonyManager)
                 context.getSystemService(Context.TELEPHONY_SERVICE);
@@ -424,7 +418,7 @@ public class BlacklistProvider extends ContentProvider {
                 : new Locale("", countryCode);
 
         String e164Number = PhoneNumberUtils.formatNumberToE164(src, numberLocale.getCountry());
-        if (e164Number != null || enforceValidity) {
+        if (e164Number != null) {
             return e164Number;
         }
         return src;
